@@ -1,0 +1,17 @@
+# Secrets — never commit these
+.env
+.env.local
+
+# Cached scenario transcripts and generated reports
+results/
+*.mp3
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# OS noise
+.DS_Store
+Thumbs.db
