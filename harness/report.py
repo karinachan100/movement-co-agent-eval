@@ -23,6 +23,47 @@ RESULTS_DIR = Path("results")
 OUTPUT = Path("readiness_report.html")
 
 
+def _as_text(value) -> str:
+    """
+    Coerce a rationale into a readable string.
+
+    The evaluator returns rationale in different shapes depending on how many
+    success conditions a test has — sometimes a plain string, sometimes a dict
+    or list of per-condition results. Rather than assume one shape, pull out
+    whatever readable text is in there.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("rationale", "summary", "explanation", "reason", "message", "text"):
+            if key in value:
+                return _as_text(value[key])
+        return " ".join(_as_text(v) for v in value.values() if v)[:400]
+    if isinstance(value, (list, tuple)):
+        return " ".join(_as_text(v) for v in value if v)[:400]
+    return str(value)
+
+
+def _passed(run_item: dict) -> bool:
+    """Did this individual run pass?"""
+    outcome = run_item.get("condition_result") or {}
+    if isinstance(outcome, dict):
+        result = outcome.get("result")
+        if isinstance(result, str):
+            return result.lower() == "success"
+        if isinstance(result, bool):
+            return result
+    return False
+
+
+def _rationale(run_item: dict) -> str:
+    outcome = run_item.get("condition_result") or {}
+    text = _as_text(outcome.get("rationale") if isinstance(outcome, dict) else outcome)
+    return (text or "No rationale returned")[:180]
+
+
 def latest_run() -> Path:
     runs = sorted(RESULTS_DIR.glob("run-*.json"))
     if not runs:
@@ -50,20 +91,15 @@ def compute(tests: list[dict], invocation: dict) -> dict:
         if not scenario_id:
             continue
 
-        passed = sum(
-            1 for i in items
-            if i.get("condition_result", {}).get("result") == "success"
-        )
+        passed = sum(1 for i in items if _passed(i))
         total = len(items)
         rate = passed / total if total else 0.0
 
         # Group failures by the evaluator's stated reason.
         buckets: dict[str, int] = defaultdict(int)
         for i in items:
-            outcome = i.get("condition_result", {})
-            if outcome.get("result") != "success":
-                reason = (outcome.get("rationale") or "No rationale returned")[:180]
-                buckets[reason] += 1
+            if not _passed(i):
+                buckets[_rationale(i)] += 1
 
         scenarios.append({
             "id": scenario_id,
