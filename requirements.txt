@@ -1,0 +1,6 @@
+elevenlabs
+python-dotenv
+
+# Makes Python use the OS certificate store. Needed on corporate networks
+# that inspect HTTPS traffic, otherwise you get CERTIFICATE_VERIFY_FAILED.
+truststore
